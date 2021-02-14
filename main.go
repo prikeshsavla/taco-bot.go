@@ -74,7 +74,7 @@ func slackBot(port string) {
 					fmt.Println("Message User", ev.User)
 
 					if strings.Contains(ev.Text, ":taco:") {
-						api.PostMessage(ev.Channel, slack.MsgOptionText("Yes, Here is a taco for ", false))
+						api.PostMessage(ev.User, slack.MsgOptionText("Yes, Here is a taco for ", false))
 					}
 
 				}
