@@ -3,8 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/slack-go/slack"
@@ -14,7 +16,7 @@ import (
 // You more than likely want your "Bot User OAuth Access Token" which starts with "xoxb-"
 var api = slack.New("xoxb-59268893569-1719504867733-4kFL22NM2iGqFSSldf13khxZ")
 
-func main() {
+func slackBot() {
 	signingSecret := "44d0ac27e7e8b90214e65526a03d83f8"
 
 	http.HandleFunc("/events-endpoint", func(w http.ResponseWriter, r *http.Request) {
@@ -87,5 +89,15 @@ func main() {
 		}
 	})
 	fmt.Println("[INFO] Server listening")
-	http.ListenAndServe(":3000", nil)
+	http.ListenAndServe(":80", nil)
+}
+
+func hello(w http.ResponseWriter, r *http.Request) {
+	io.WriteString(w, "Hello World")
+}
+
+func main() {
+	port := os.Getenv("PORT")
+	http.HandleFunc("/", hello)
+	http.ListenAndServe(":"+port, nil)
 }
