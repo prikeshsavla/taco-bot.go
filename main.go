@@ -16,7 +16,7 @@ import (
 // You more than likely want your "Bot User OAuth Access Token" which starts with "xoxb-"
 var api = slack.New("xoxb-59268893569-1719504867733-4kFL22NM2iGqFSSldf13khxZ")
 
-func slackBot() {
+func slackBot(port string) {
 	signingSecret := "44d0ac27e7e8b90214e65526a03d83f8"
 
 	http.HandleFunc("/events-endpoint", func(w http.ResponseWriter, r *http.Request) {
@@ -89,7 +89,7 @@ func slackBot() {
 		}
 	})
 	fmt.Println("[INFO] Server listening")
-	http.ListenAndServe(":80", nil)
+	http.ListenAndServe(":"+port, nil)
 }
 
 func hello(w http.ResponseWriter, r *http.Request) {
@@ -98,6 +98,6 @@ func hello(w http.ResponseWriter, r *http.Request) {
 
 func main() {
 	port := os.Getenv("PORT")
-	http.HandleFunc("/", hello)
-	http.ListenAndServe(":"+port, nil)
+	slackBot(port)
+
 }
