@@ -3,23 +3,27 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
+	"github.com/joho/godotenv"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 )
 
-// You more than likely want your "Bot User OAuth Access Token" which starts with "xoxb-"
-var api = slack.New("xoxb-1749972010818-1743212789686-V4SmcplIWkOado6HB3jgIkUg")
+var tacoTrades []string
 
 func slackBot(port string) {
-	signingSecret := "3a2061fba6f2f56b7f5fde6db4953440"
+	token := os.Getenv("SLACKTOKEN")
+	var api = slack.New(token)
 
-	http.HandleFunc("/events-endpoint", func(w http.ResponseWriter, r *http.Request) {
+	signingSecret := os.Getenv("SIGNING_SECRET")
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -81,22 +85,45 @@ func slackBot(port string) {
 			case *slackevents.ReactionAddedEvent:
 				{
 					fmt.Println("Reaction", ev.Reaction)
-					if strings.Contains(ev.Reaction, "taco") {
-						api.PostMessage(ev.Item.Channel, slack.MsgOptionText("Yes, Here is a taco for ", false))
+					if strings.Contains(ev.Reaction, "white_check_mark") {
+
+						sendTaco(api, ev.User, ev.ItemUser)
 					}
 				}
 			}
 		}
 	})
 	fmt.Println("[INFO] Server listening")
+	fmt.Println(port)
 	http.ListenAndServe(":"+port, nil)
 }
 
-func hello(w http.ResponseWriter, r *http.Request) {
-	io.WriteString(w, "Hello World")
+func sendTaco(api *slack.Client, userFrom string, userTo string) {
+	from, err := api.GetUserInfo(userFrom)
+
+	tacoTrades = append(tacoTrades, userFrom)
+
+	fmt.Println(tacoTrades)
+	if err != nil {
+		log.Println(err)
+	}
+	to, err := api.GetUserInfo(userTo)
+	if err != nil {
+		log.Println(err)
+	}
+
+	fmt.Println(from.RealName)
+	fmt.Println(to.RealName)
+	api.PostMessage(userFrom, slack.MsgOptionText("You sent a taco to  <@"+userFrom+">, "+strconv.Itoa(5-len(tacoTrades))+" Tacos Left", false))
+	api.PostMessage(userTo, slack.MsgOptionText("<@"+userFrom+"> gave you a taco", false))
 }
 
 func main() {
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	port := os.Getenv("PORT")
 	slackBot(port)
 
