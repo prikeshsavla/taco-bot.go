@@ -7,6 +7,7 @@ require (
 	github.com/bwmarrin/discordgo v0.23.2 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185 // indirect
 	github.com/go-pg/pg/v10 v10.7.6 // indirect
+	github.com/go-redis/redis v6.15.9+incompatible
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/grobie/govendor v0.0.0-20151209164115-7d7bdd90b3eb // indirect
 	github.com/joho/godotenv v1.3.0

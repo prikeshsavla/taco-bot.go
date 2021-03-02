@@ -9,13 +9,21 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/go-redis/redis"
 	"github.com/joho/godotenv"
 	"github.com/slack-go/slack"
 	"github.com/slack-go/slack/slackevents"
 )
 
-var tacoTrades []string
+type Trade struct {
+	from string
+	to   string
+	at   time.Time
+}
+
+var tacoTrades []Trade
 
 func slackBot(port string) {
 	token := os.Getenv("SLACKTOKEN")
@@ -26,14 +34,12 @@ func slackBot(port string) {
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		body, err := ioutil.ReadAll(r.Body)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Println("failed")
+			writeError(w, http.StatusBadRequest)
 			return
 		}
 		eventsAPIEvent, err := slackevents.ParseEvent(json.RawMessage(body), slackevents.OptionNoVerifyToken())
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Println("failed")
+			writeError(w, http.StatusInternalServerError)
 			return
 		}
 
@@ -41,8 +47,7 @@ func slackBot(port string) {
 			var r *slackevents.ChallengeResponse
 			err := json.Unmarshal([]byte(body), &r)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				fmt.Println("failed")
+				writeError(w, http.StatusInternalServerError)
 				return
 			}
 			w.Header().Set("Content-Type", "text")
@@ -51,57 +56,91 @@ func slackBot(port string) {
 		}
 		sv, err := slack.NewSecretsVerifier(r.Header, signingSecret)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			fmt.Println("failed")
+			writeError(w, http.StatusBadRequest)
 			return
 		}
 		if _, err := sv.Write(body); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Println("failed")
+			writeError(w, http.StatusInternalServerError)
 			return
 		}
 		if err := sv.Ensure(); err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			fmt.Println("failed")
+			writeError(w, http.StatusUnauthorized)
 			return
 		}
 		if eventsAPIEvent.Type == slackevents.CallbackEvent {
-			innerEvent := eventsAPIEvent.InnerEvent
-			switch ev := innerEvent.Data.(type) {
-			case *slackevents.AppMentionEvent:
-				{
-					api.PostMessage(ev.Channel, slack.MsgOptionText("Yes, hello.", false))
-				}
-			case *slackevents.MessageEvent:
-				{
-					fmt.Println("Message", ev.Text)
-					fmt.Println("Message User", ev.User)
-
-					if strings.Contains(ev.Text, ":taco:") {
-						api.PostMessage(ev.User, slack.MsgOptionText("Yes, Here is a taco for ", false))
-					}
-
-				}
-			case *slackevents.ReactionAddedEvent:
-				{
-					fmt.Println("Reaction", ev.Reaction)
-					if strings.Contains(ev.Reaction, "white_check_mark") {
-
-						sendTaco(api, ev.User, ev.ItemUser)
-					}
-				}
-			}
+			receiveTaco(api, eventsAPIEvent)
 		}
 	})
 	fmt.Println("[INFO] Server listening")
 	fmt.Println(port)
+	fmt.Println("Go Redis Tutorial")
+
+	client := redis.NewClient(&redis.Options{
+		Addr:     "localhost:6379",
+		Password: "",
+		DB:       0,
+	})
+
+	pong, err := client.Ping().Result()
+	fmt.Println(pong, err)
+
+	// we can call set with a `Key` and a `Value`.
+	err = client.Set("name", "Elliot", 0).Err()
+	// if there has been an error setting the value
+	// handle the error
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	val, err := client.Get("name").Result()
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(val)
+
 	http.ListenAndServe(":"+port, nil)
+}
+
+func writeError(w http.ResponseWriter, errorCode int) {
+	w.WriteHeader(errorCode)
+	fmt.Println("failed")
+}
+
+func receiveTaco(api *slack.Client, eventsAPIEvent slackevents.EventsAPIEvent) {
+
+	innerEvent := eventsAPIEvent.InnerEvent
+	switch ev := innerEvent.Data.(type) {
+	case *slackevents.AppMentionEvent:
+		{
+			api.PostMessage(ev.Channel, slack.MsgOptionText("Yes, hello.", false))
+		}
+	case *slackevents.MessageEvent:
+		{
+			fmt.Println("Message", ev.Text)
+			fmt.Println("Message User", ev.User)
+
+			if strings.Contains(ev.Text, ":taco:") {
+				api.PostMessage(ev.User, slack.MsgOptionText("Yes, Here is a taco for ", false))
+			}
+
+		}
+	case *slackevents.ReactionAddedEvent:
+		{
+			fmt.Println("Reaction", ev.Reaction)
+			if strings.Contains(ev.Reaction, "white_check_mark") {
+
+				sendTaco(api, ev.User, ev.ItemUser)
+			}
+		}
+	}
+
 }
 
 func sendTaco(api *slack.Client, userFrom string, userTo string) {
 	from, err := api.GetUserInfo(userFrom)
 
-	tacoTrades = append(tacoTrades, userFrom)
+	tacoTrades = append(tacoTrades, Trade{from: userFrom})
 
 	fmt.Println(tacoTrades)
 	if err != nil {
@@ -125,6 +164,27 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 	port := os.Getenv("PORT")
-	slackBot(port)
+	// slackBot(port)
+	http.HandleFunc("/", dummyBot)
+
+	http.ListenAndServe(":"+port, nil)
+}
+
+func dummyBot(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != "/" {
+		http.NotFound(w, r)
+		return
+	}
+
+	var query = r.URL.Query()
+
+	fmt.Println("from: " + query.Get("from"))
+	fmt.Println("to: " + query.Get("to"))
+
+	tacoTrades = append(tacoTrades, Trade{from: query.Get("from"), to: query.Get("to"), at: time.Now()})
+
+	fmt.Println(tacoTrades)
+
+	w.Write([]byte("Received a GET request\n"))
 
 }
